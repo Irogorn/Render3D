@@ -1,0 +1,17 @@
+# Fichiers de debug Xcode
+*.dSYM
+
+# Dossiers du projet
+glm/
+Render3D
+Template/
+
+# Configuration IDE
+.vscode/
+
+# Fichiers système macOS
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+._*

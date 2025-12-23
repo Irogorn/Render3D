@@ -1,0 +1,56 @@
+// 1) Depth in clip-space
+float depth = GetPixelDepth(x, y);  // supposé déjà entre 0–1
+vec2 uv    = vec2(x + 0.5f, y + 0.5f) / vec2(_width, _height);
+
+// clip-space
+vec4 posCS = vec4(uv * 2.0f - 1.0f, depth, 1.0f);
+posCS.y *= -1.0f;
+
+// view-space
+vec4 posVS = inverse(proj) * posCS;
+posVS /= posVS.w;
+
+// incident dans view-space
+vec3 incidentVS = normalize(posVS.xyz);
+
+// normal view-space
+vec3 normalVS = normalize(vec3(view * vec4(GetPixelNormal(x, y), 0.0f)));
+
+// reflection in view-space
+vec3 reflVS = reflect(incidentVS, normalVS);
+
+// transform reflect end into clip-space
+vec4 reflEndVS = posVS + vec4(reflVS * 1000.0f, 0.0f);
+vec4 reflEndCS = proj * reflEndVS;
+
+reflEndCS /= reflEndCS.w;
+
+// reflection direction in clip-space
+vec3 reflDirCS = normalize((reflEndCS.xyz - posCS.xyz));
+
+vec3 current = samplePosTS;
+float maxDist = ComputeMaxTraceDistance(samplePosTS, reflDirTS);
+
+// maxDist calculé comme dans l’article
+// cf. cleavage to screen bounds
+float dt     = normalize(reflDirTS).z;  // déplacement en profondeur
+
+bool hit = false;
+vec2 hitUV;
+
+for (float traveled = 0.0f; traveled < maxDist; traveled += stepSize)
+{
+    current += reflDirTS * stepSize;
+
+    // sample depth in texture space
+    float sceneDepth = GetDepthTextureAt(current.xy);
+
+    if ( (current.z - sceneDepth) >= 0.0f && (current.z - sceneDepth) < thickness)
+    {
+        hit = true;
+        hitUV = current.xy;
+        break;
+    }
+}
+
+vec3 reflectedColor = GetPixelAlbedo(hitUV.x * _width, hitUV.y * _height);
