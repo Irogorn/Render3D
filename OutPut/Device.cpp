@@ -645,28 +645,28 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             float F0 = 0.3f;
             float fresnel = F0 + (1.0f - F0) * pow(1.0f - NdotV, 5.0f);
 
-            vec3 startRay = positionWorld + normal * 0.01f;
+            vec3 startRay = positionWorld + reflection * 0.02f;
 
             // CALCUL DE LA DISTANCE MAX ET DU STEP
             vec4 startNdc = proj * view * vec4{startRay, 1.0f};
             startNdc /= startNdc.w;
-            
+
             // Point de départ en coordonnées écran [0,1]
             vec2 startUV{
                 (startNdc.x + 1.0f) * 0.5f,
                 (-startNdc.y + 1.0f) * 0.5f
             };
-            
+
             // Direction du rayon en NDC
             vec4 endPointWorld = vec4{startRay + reflection, 1.0f};
             vec4 endPointNdc = proj * view * endPointWorld;
             endPointNdc /= endPointNdc.w;
-            
+
             vec2 endUV{
                 (endPointNdc.x + 1.0f) * 0.5f,
                 (-endPointNdc.y + 1.0f) * 0.5f
             };
-            
+
             // Vecteur de réflexion en espace écran
             vec2 reflectionScreenSpace = endUV - startUV;
 
@@ -676,21 +676,40 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             // Calculer la distance jusqu'au bord dans chaque direction
             float distX = (rayDir2D.x > 0.0f ? 1.0f - startUV.x : startUV.x) / (abs(rayDir2D.x) + 1e-6f);
             float distY = (rayDir2D.y > 0.0f ? 1.0f - startUV.y : startUV.y) / (abs(rayDir2D.y) + 1e-6f);
-            
+
             float distance_max = std::min(distX, distY);
             distance_max = std::min(distance_max, sqrtf(2.0f)); // Limiter à la diagonale écran
             distance_max = std::max(distance_max, 0.01f); // Minimum de sécurité
-            
+
             // Longueur du vecteur de réflexion en espace écran
             float reflectionLength = length(reflectionScreenSpace);
             if (reflectionLength < 1e-6f)
                 continue; // Éviter division par zéro
-            
-            // Step normalisé = distance_max / longueur du vecteur
-            int baseSteps = 1000;
-            int maxStep = static_cast<int>(distance_max * baseSteps);
-            maxStep = std::max(maxStep, 10); 
-            float stepSize = (distance_max / reflectionLength) / static_cast<float>(maxStep);
+
+            // === NOUVEAU CALCUL STEPSIZE EN ESPACE MONDE ===
+            // Calculer la distance monde correspondant à distance_max écran
+            vec3 rayEndWorld = startRay + reflection * 100.0f; // Point loin sur le rayon (100 unités monde)
+            vec4 rayEndNdc = proj * view * vec4{rayEndWorld, 1.0f};
+            rayEndNdc /= rayEndNdc.w;
+
+            vec2 rayEndUV{
+                (rayEndNdc.x + 1.0f) * 0.5f,
+                (-rayEndNdc.y + 1.0f) * 0.5f
+            };
+
+            // Distance écran pour 100 unités monde
+            float screenDistFor100 = length(rayEndUV - startUV);
+
+            // Ratio monde/écran
+            float worldPerScreen = 100.0f / (screenDistFor100 + 1e-6f); // Éviter division par zéro
+
+            // Distance monde max
+            float maxWorldDistance = distance_max * worldPerScreen;
+
+            // StepSize en MONDE
+            int maxStep = 4000;
+            float stepSize = maxWorldDistance / static_cast<float>(maxStep);
+
 
             vec3 curPos = startRay;
 
@@ -698,7 +717,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             vec3 hitColor{};
             float prevPosZ = startNdc.z * 0.5f + 0.5f;
 
-            for (int i = 0; i < maxStep; i++)
+            for (int i = 1; i < maxStep; i++)
             {
 
                 vec4 curPos4{curPos, 1.0f};
@@ -726,7 +745,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
                 // Calculer la distance à la surface
                 float distanceToSurface = abs(linearCurPosZ - linearPixelDepth);
 
-                if (linearCurPosZ >= linearPixelDepth && distanceToSurface < 0.3125f)
+                if (linearCurPosZ >= linearPixelDepth && distanceToSurface < 0.1f)
                 {
                     hit = true;
                     hitColor = GetPixelAlbedo(screenX, screenY);
