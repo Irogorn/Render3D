@@ -523,16 +523,16 @@ void Device::RenderScene(std::shared_ptr<Camera> camera, Mesh meshes, Lights &l)
             Lights localLight = Lights(l);
             localLight.setConstantLight(meshes.get_ConstantLight(i, j));
 
-            threadPool.enqueue([this, transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera,
+         /*   threadPool.enqueue([this, transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera,
                                 projected_coordinates, world_coordinates, Z_correction]()
-                               {
+                               {*/
 
                 Textures tex = Textures(localLight.getPathTexture());
                 TextureNormalMap nTex = TextureNormalMap(localLight.getPathTextureBump());
                 TextureParallaxMapping pTex = TextureParallaxMapping(localLight.getPathTextureDisp(),0.15f);
                 
                 RasterizeTriangle(transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera, 
-                                projected_coordinates, world_coordinates, Z_correction, tex, nTex, pTex); });
+                                projected_coordinates, world_coordinates, Z_correction, tex, nTex, pTex); //});
 
             projected_coordinates.clear();
             world_coordinates.clear();

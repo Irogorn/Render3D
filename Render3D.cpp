@@ -32,23 +32,23 @@ int main(int argc, char *argv[])
         Lights l;
 
         // Light Setting.
-        //Use exclusively in direct light.
+        // Use exclusively in direct light.
         vec3 Light_Direction = {};
-        Light_Direction.x = 3.0f;
+        Light_Direction.x = 1.0f;
         Light_Direction.y = 1.0f;
         Light_Direction.z = -1.0f;
         vec3 Light_Direction2 = {};
         Light_Direction2.x = -1.0f;
         Light_Direction2.y = -1.0f;
         Light_Direction2.z = -1.0f;
-        //Suitable for other types of light.
+        // Suitable for other types of light.
         vec3 Light_Position = {};
         Light_Position.x = 0.0f;
         Light_Position.y = 0.0f;
-        Light_Position.z = 2.5f;
+        Light_Position.z = 1.0f;
         vec3 Light_Position2 = {};
         Light_Position2.x = 0.0f;
-        Light_Position2.y = 1.5f;
+        Light_Position2.y = 3.0f;
         Light_Position2.z = 0.0f;
         vec3 red = {1.0f, 0.0f, 0.0f};
         vec3 green = {0.0f, 1.0f, 0.0f};
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
         vec3 yellow = {1.0f, 1.0f, 0.0f};
         vec3 apricot = {0.9843f, 0.8078f, 0.6941f};
 
-        camera->set_position(0.0f, 0.0f, 5.0f);
+        camera->set_position(0.0f, 0.0f, 8.0f);
 
         if (argc < 2 || string(argv[1]) == "-h")
         {
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
                 }
                 if (string(argv[2]).substr(3, 10) == "pointlight")
                 {
-                    l.setLight("pointlight", LightType::PointLight, Light_Position2, white);
+                    l.setLight("pointlight", LightType::PointLight, Light_Position2, blue);
                 }
                 if (string(argv[2]).substr(3, 4) == "spot")
                 {
@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
         camera->set_target(0.0f, 0.0f, 0.0f);
 
         // Application of Transformation on Objects.
-        // m.set_rotation(0,0.0f, 0.0f, 0.0f);
-        //m.set_position(20,0.0f,0.0f,0.0f);
+        // m.set_rotation(0,0.0f, glm::radians(45.0f), 0.0f);
+        //  m.set_position(0,0.0f,0.0f,3.0f);
 
         for (MeshData me : m.get_meshData())
         {
