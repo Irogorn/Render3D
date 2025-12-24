@@ -640,18 +640,59 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             vec3 viewDirWorld = normalize(positionWorld - camera->get_position());
             vec3 reflection = reflect(viewDirWorld, normal);
 
-            // ⭐ FRESNEL - Calculer l'intensité de réflexion selon l'angle
+            // FRESNEL - Calculer l'intensité de réflexion selon l'angle
             float NdotV = std::max(dot(normal, -viewDirWorld), 0.0f);
-            float F0 = 0.5f; // 0.04f; // Réflectance à incidence normale (matériau diélectrique standard)
+            float F0 = 0.3f;
             float fresnel = F0 + (1.0f - F0) * pow(1.0f - NdotV, 5.0f);
 
-            vec3 startRay = positionWorld + normal * 0.01f; // 0.0005f;
+            vec3 startRay = positionWorld + normal * 0.01f;
 
-            int maxStep = 1000;
-            vec3 curPos = startRay;
-
+            // CALCUL DE LA DISTANCE MAX ET DU STEP
             vec4 startNdc = proj * view * vec4{startRay, 1.0f};
             startNdc /= startNdc.w;
+            
+            // Point de départ en coordonnées écran [0,1]
+            vec2 startUV{
+                (startNdc.x + 1.0f) * 0.5f,
+                (-startNdc.y + 1.0f) * 0.5f
+            };
+            
+            // Direction du rayon en NDC
+            vec4 endPointWorld = vec4{startRay + reflection, 1.0f};
+            vec4 endPointNdc = proj * view * endPointWorld;
+            endPointNdc /= endPointNdc.w;
+            
+            vec2 endUV{
+                (endPointNdc.x + 1.0f) * 0.5f,
+                (-endPointNdc.y + 1.0f) * 0.5f
+            };
+            
+            // Vecteur de réflexion en espace écran
+            vec2 reflectionScreenSpace = endUV - startUV;
+
+            // Calculer la distance jusqu'aux bords de l'écran
+            vec2 rayDir2D = normalize(reflectionScreenSpace);
+
+            // Calculer la distance jusqu'au bord dans chaque direction
+            float distX = (rayDir2D.x > 0.0f ? 1.0f - startUV.x : startUV.x) / (abs(rayDir2D.x) + 1e-6f);
+            float distY = (rayDir2D.y > 0.0f ? 1.0f - startUV.y : startUV.y) / (abs(rayDir2D.y) + 1e-6f);
+            
+            float distance_max = std::min(distX, distY);
+            distance_max = std::min(distance_max, sqrtf(2.0f)); // Limiter à la diagonale écran
+            distance_max = std::max(distance_max, 0.01f); // Minimum de sécurité
+            
+            // Longueur du vecteur de réflexion en espace écran
+            float reflectionLength = length(reflectionScreenSpace);
+            if (reflectionLength < 1e-6f)
+                continue; // Éviter division par zéro
+            
+            // Step normalisé = distance_max / longueur du vecteur
+            int baseSteps = 1000;
+            int maxStep = static_cast<int>(distance_max * baseSteps);
+            maxStep = std::max(maxStep, 10); 
+            float stepSize = (distance_max / reflectionLength) / static_cast<float>(maxStep);
+
+            vec3 curPos = startRay;
 
             bool hit = false;
             vec3 hitColor{};
@@ -682,39 +723,21 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
                 float linearCurPosZ = LinearizeDepth(curPosZ, 1.0f, 100.0f);
                 float linearPrevPosZ = LinearizeDepth(prevPosZ, 1.0f, 100.0f);
 
-                // ⭐ Calculer la distance à la surface
+                // Calculer la distance à la surface
                 float distanceToSurface = abs(linearCurPosZ - linearPixelDepth);
 
-                bool crossing = (linearPrevPosZ < linearPixelDepth && linearCurPosZ >= linearPixelDepth) ||
-                                (linearPrevPosZ > linearPixelDepth && linearCurPosZ <= linearPixelDepth);
-
-                if (crossing && distanceToSurface < 0.5f)
+                if (linearCurPosZ >= linearPixelDepth && distanceToSurface < 0.3125f)
                 {
                     hit = true;
                     hitColor = GetPixelAlbedo(screenX, screenY);
                     break;
                 }
 
-                // ⭐ Pas adaptatif selon la distance
-                float adaptiveStep;
-                if (distanceToSurface < 1.0f)
-                {
-                    adaptiveStep = 0.005f; // Petit step près de la surface
-                }
-                else if (distanceToSurface < 5.0f)
-                {
-                    adaptiveStep = 0.02f; // Step moyen
-                }
-                else
-                {
-                    adaptiveStep = 0.05f; // Grand step loin des surfaces
-                }
-
-                curPos += reflection * adaptiveStep;
+                curPos += reflection * stepSize;
                 prevPosZ = curPosZ;
             }
 
-            // ⭐ BLENDING - Mélanger couleur originale et réflexion selon Fresnel
+            // BLENDING - Mélanger couleur originale et réflexion selon Fresnel
             vec3 baseColor = GetPixelAlbedo(x, y); // Couleur originale du pixel
 
             vec3 finalColor;
