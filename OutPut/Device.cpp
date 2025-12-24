@@ -317,9 +317,7 @@ void Device::RasterizeTriangle(const mat4x4 &proj, const mat4x4 &world, const ma
                         l.ComputeSpecular(camera->get_position(), 64);
                     }
 
-                    //   l.ComputeAttenuation("pointlight", 0.014f, 0.000007f,20.0f);
-                    //    l.ComputeAttenuation("pointlight", 0.22f,  0.20f,   20.0f);
-                    //    l.ComputeAttenuation("pointlight",0.09f,  0.032f,  10.0f);
+                    l.ComputeAttenuation("pointlight",0.09f,  0.032f,  10.0f);
 
                     float innerAngle = 12.5f;
                     float outerAngle = 17.5f;
