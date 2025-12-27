@@ -224,59 +224,79 @@ void Lights::ComputeSpecular(vec3 camera_position, float s, mat3x3 TBN, bool par
 
 vec3 Lights::getIntensity(vec3 weight, Face f)
 {
-    vec3 DirectDot{};
-    vec3 DirectSpec{};
-    vec3 PointDot{};
-    vec3 PointSpec{};
-    vec3 SpotDot{0.0f};
-    vec3 SpotSpec{0.0f};
-
     float ao = 0.7f; // f.A.occlusion * weight.x + f.B.occlusion * weight.y + f.C.occlusion * weight.z;
 
-    vec3 i{}, directLight{}, pointLight{}, spotLight{};
+    __m128 Ke_simd = vec3_to_m128(_constantLight.Ke);
+    __m128 Ka_simd = vec3_to_m128(_constantLight.Ka);
+    __m128 Kd_simd = vec3_to_m128(_constantLight.Kd);
+    __m128 Ks_simd = vec3_to_m128(_constantLight.Ks);
 
-    i.x = (_constantLight.Ke.x + _constantLight.Ka.x * ao);
-    i.y = (_constantLight.Ke.y + _constantLight.Ka.y * ao);
-    i.z = (_constantLight.Ke.z + _constantLight.Ka.z * ao);
+    __m128 ao_simd = _mm_set1_ps(ao);
+
+    __m128 i_simd = _mm_fmadd_ps(Ka_simd, ao_simd, Ke_simd);
+
+    __m128 directLight_simd = _mm_setzero_ps();
+    __m128 pointLight_simd = _mm_setzero_ps();
+    __m128 spotLight_simd = _mm_setzero_ps();
 
     for (std::map<string, Light>::iterator it = _mLights.begin(); it != _mLights.end(); ++it)
     {
         if (it->second._typeOfLight == LightType::DirectionLight)
         {
-            DirectDot = it->second.dot * it->second._color;
-            DirectSpec = it->second.spec * it->second._color;
-            directLight.x += (_constantLight.Kd.x * DirectDot.x) + (_constantLight.Ks.x * DirectSpec.x);
-            directLight.y += (_constantLight.Kd.y * DirectDot.y) + (_constantLight.Ks.y * DirectSpec.y);
-            directLight.z += (_constantLight.Kd.z * DirectDot.z) + (_constantLight.Ks.z * DirectSpec.z);
+            __m128 color_simd = vec3_to_m128(it->second._color);
+            __m128 dot_simd = _mm_set1_ps(it->second.dot);
+            __m128 spec_simd = _mm_set1_ps(it->second.spec);
+
+            __m128 DirectDot_simd = _mm_mul_ps(dot_simd, color_simd);
+            directLight_simd = _mm_fmadd_ps(Kd_simd, DirectDot_simd, directLight_simd);
         }
         else
         {
             if (it->second._typeOfLight == LightType::PointLight)
             {
-                PointDot = it->second.dot * it->second._color;
-                PointSpec = it->second.spec * it->second._color;
-                pointLight.x += ((_constantLight.Kd.x * PointDot.x) + (_constantLight.Ks.x * PointSpec.x)) * it->second.attenuation;
-                pointLight.y += ((_constantLight.Kd.y * PointDot.y) + (_constantLight.Ks.y * PointSpec.y)) * it->second.attenuation;
-                pointLight.z += ((_constantLight.Kd.z * PointDot.z) + (_constantLight.Ks.z * PointSpec.z)) * it->second.attenuation;
+                __m128 color_simd = vec3_to_m128(it->second._color);
+                __m128 dot_simd = _mm_set1_ps(it->second.dot);
+                __m128 spec_simd = _mm_set1_ps(it->second.spec);
+                __m128 att_simd = _mm_set1_ps(it->second.attenuation);
+
+                __m128 PointDot_simd = _mm_mul_ps(dot_simd, color_simd);
+                __m128 PointSpec_simd = _mm_mul_ps(spec_simd, color_simd);
+
+                __m128 temp = _mm_mul_ps(Kd_simd, PointDot_simd);
+
+                temp = _mm_fmadd_ps(Ks_simd, PointSpec_simd, temp);
+
+                pointLight_simd = _mm_fmadd_ps(temp, att_simd, pointLight_simd);
             }
             else if (it->second._typeOfLight == LightType::SpotLight)
             {
-                SpotDot = it->second.dot * it->second._color;
-                SpotSpec = it->second.spec * it->second._color;
-                spotLight.x += ((_constantLight.Kd.x * SpotDot.x) + (_constantLight.Ks.x * SpotSpec.x)) * it->second.spot;
-                spotLight.y += ((_constantLight.Kd.y * SpotDot.y) + (_constantLight.Ks.y * SpotSpec.y)) * it->second.spot;
-                spotLight.z += ((_constantLight.Kd.z * SpotDot.z) + (_constantLight.Ks.z * SpotSpec.z)) * it->second.spot;
+                __m128 color_simd = vec3_to_m128(it->second._color);
+                __m128 dot_simd = _mm_set1_ps(it->second.dot);
+                __m128 spec_simd = _mm_set1_ps(it->second.spec);
+                __m128 spot_simd = _mm_set1_ps(it->second.spot);
+
+                __m128 SpotDot_simd = _mm_mul_ps(dot_simd, color_simd);
+                __m128 SpotSpec_simd = _mm_mul_ps(spec_simd, color_simd);
+
+                __m128 temp = _mm_mul_ps(Kd_simd, SpotDot_simd);
+
+                temp = _mm_fmadd_ps(Ks_simd, SpotSpec_simd, temp);
+
+                spotLight_simd = _mm_fmadd_ps(temp, spot_simd, spotLight_simd);
             }
         }
     }
 
-    i += directLight + pointLight + spotLight;
+    i_simd = _mm_add_ps(i_simd, directLight_simd);
+    i_simd = _mm_add_ps(i_simd, pointLight_simd);
+    i_simd = _mm_add_ps(i_simd, spotLight_simd);
 
-    i.x = std::max(0.0f, std::min(1.0f, i.x));
-    i.y = std::max(0.0f, std::min(1.0f, i.y));
-    i.z = std::max(0.0f, std::min(1.0f, i.z));
+    // Clamping [0, 1]
+    __m128 zero = _mm_setzero_ps();
+    __m128 one = _mm_set1_ps(1.0f);
+    i_simd = clamp_m128(i_simd, zero, one);
 
-    return i;
+    return m128_to_vec3(i_simd);
 }
 
 vec3 Lights::getPosition(string name)

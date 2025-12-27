@@ -215,7 +215,7 @@ void Device::RasterizeTriangle(const mat4x4 &proj, const mat4x4 &world, const ma
                 else
                 {
                     _depthbuffer[y * GetWidth() + x].store(Z);
-                    float contrast = std::pow(Z, 10.0f);
+                    float contrast = std::pow(Z, 2.5f);
                     _imageZbuffer[y * GetWidth() + x] = static_cast<unsigned char>(contrast * 255.0f);
                     write = true;
                 }
@@ -317,7 +317,7 @@ void Device::RasterizeTriangle(const mat4x4 &proj, const mat4x4 &world, const ma
                         l.ComputeSpecular(camera->get_position(), 64);
                     }
 
-                    l.ComputeAttenuation("pointlight",0.09f,  0.032f,  10.0f);
+                    l.ComputeAttenuation("pointlight", 0.09f, 0.032f, 10.0f);
 
                     float innerAngle = 12.5f;
                     float outerAngle = 17.5f;
@@ -523,16 +523,16 @@ void Device::RenderScene(std::shared_ptr<Camera> camera, Mesh meshes, Lights &l)
             Lights localLight = Lights(l);
             localLight.setConstantLight(meshes.get_ConstantLight(i, j));
 
-         /*   threadPool.enqueue([this, transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera,
-                                projected_coordinates, world_coordinates, Z_correction]()
-                               {*/
+            /*   threadPool.enqueue([this, transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera,
+                                   projected_coordinates, world_coordinates, Z_correction]()
+                                  {*/
 
-                Textures tex = Textures(localLight.getPathTexture());
-                TextureNormalMap nTex = TextureNormalMap(localLight.getPathTextureBump());
-                TextureParallaxMapping pTex = TextureParallaxMapping(localLight.getPathTextureDisp(),0.15f);
-                
-                RasterizeTriangle(transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera, 
-                                projected_coordinates, world_coordinates, Z_correction, tex, nTex, pTex); //});
+            Textures tex = Textures(localLight.getPathTexture());
+            TextureNormalMap nTex = TextureNormalMap(localLight.getPathTextureBump());
+            TextureParallaxMapping pTex = TextureParallaxMapping(localLight.getPathTextureDisp(), 0.15f);
+
+            RasterizeTriangle(transformMatrix, WorldMatrix, normalMatrix, face, meshes, localLight, camera,
+                              projected_coordinates, world_coordinates, Z_correction, tex, nTex, pTex); //});
 
             projected_coordinates.clear();
             world_coordinates.clear();
@@ -611,6 +611,11 @@ float LinearizeDepth(float depth, float near, float far)
     return (2.0f * near * far) / (far + near - z * (far - near));
 }
 
+vec3 FresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0f - F0) * std::pow(glm::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+}
+
 void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, const mat4x4 &view, const mat4x4 &proj)
 {
     std::cout << "Starting SSR..." << std::endl;
@@ -643,7 +648,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             // FRESNEL - Calculer l'intensité de réflexion selon l'angle
             float NdotV = std::max(dot(normal, -viewDirWorld), 0.0f);
             float F0 = 0.3f;
-            float fresnel = F0 + (1.0f - F0) * pow(1.0f - NdotV, 5.0f);
+            float fresnel = FresnelSchlick(NdotV, {F0, F0, F0}).x;
 
             vec3 startRay = positionWorld + reflection * 0.02f;
 
@@ -654,8 +659,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             // Point de départ en coordonnées écran [0,1]
             vec2 startUV{
                 (startNdc.x + 1.0f) * 0.5f,
-                (-startNdc.y + 1.0f) * 0.5f
-            };
+                (-startNdc.y + 1.0f) * 0.5f};
 
             // Direction du rayon en NDC
             vec4 endPointWorld = vec4{startRay + reflection, 1.0f};
@@ -664,8 +668,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
 
             vec2 endUV{
                 (endPointNdc.x + 1.0f) * 0.5f,
-                (-endPointNdc.y + 1.0f) * 0.5f
-            };
+                (-endPointNdc.y + 1.0f) * 0.5f};
 
             // Vecteur de réflexion en espace écran
             vec2 reflectionScreenSpace = endUV - startUV;
@@ -679,7 +682,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
 
             float distance_max = std::min(distX, distY);
             distance_max = std::min(distance_max, sqrtf(2.0f)); // Limiter à la diagonale écran
-            distance_max = std::max(distance_max, 0.01f); // Minimum de sécurité
+            distance_max = std::max(distance_max, 0.01f);       // Minimum de sécurité
 
             // Longueur du vecteur de réflexion en espace écran
             float reflectionLength = length(reflectionScreenSpace);
@@ -694,8 +697,7 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
 
             vec2 rayEndUV{
                 (rayEndNdc.x + 1.0f) * 0.5f,
-                (-rayEndNdc.y + 1.0f) * 0.5f
-            };
+                (-rayEndNdc.y + 1.0f) * 0.5f};
 
             // Distance écran pour 100 unités monde
             float screenDistFor100 = length(rayEndUV - startUV);
@@ -709,7 +711,6 @@ void Device::ApplyScreenSpaceReflections(const std::shared_ptr<Camera> &camera, 
             // StepSize en MONDE
             int maxStep = 4000;
             float stepSize = maxWorldDistance / static_cast<float>(maxStep);
-
 
             vec3 curPos = startRay;
 

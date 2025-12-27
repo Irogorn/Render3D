@@ -12,22 +12,47 @@
 #include <stdio.h>
 #include <glm.hpp>
 #include <vector>
-#include<map>
+#include <map>
 #include "../LoadingFiles/Mesh.hpp"
 #include <iostream>
+#include <immintrin.h>
 using namespace glm;
 using namespace std;
 
 namespace Render3D
 {
-    enum class LightType {NoLight,DirectionLight, PointLight, SpotLight};
+    inline __m128 vec3_to_m128(const vec3 &v)
+    {
+        return _mm_setr_ps(v.x, v.y, v.z, 0.0f); // Ordre naturel
+    }
+
+    inline vec3 m128_to_vec3(__m128 v)
+    {
+        float result[4];
+        _mm_store_ps(result, v);
+        return vec3(result[0], result[1], result[2]);
+    }
+
+    inline __m128 clamp_m128(__m128 v, __m128 min_val, __m128 max_val)
+    {
+        __m128 clamped = _mm_max_ps(v, min_val);
+        return _mm_min_ps(clamped, max_val);
+    }
+
+    enum class LightType
+    {
+        NoLight,
+        DirectionLight,
+        PointLight,
+        SpotLight
+    };
 
     struct Light
     {
-        vec3 _positions = { 0.0f,0.0f,0.0f };
-        vec3 _direction = { 0.0f,0.0f,0.0f };
-        vec3 _intensity = { 0.0f,0.0f,0.0f };
-        vec3 _color = { 1.0f,1.0f,1.0f };
+        vec3 _positions = {0.0f, 0.0f, 0.0f};
+        vec3 _direction = {0.0f, 0.0f, 0.0f};
+        vec3 _intensity = {0.0f, 0.0f, 0.0f};
+        vec3 _color = {1.0f, 1.0f, 1.0f};
         float spec = 0.0f;
         float dot = 0.0f;
         float attenuation = 1.0f;
@@ -47,16 +72,16 @@ namespace Render3D
         map<string, Light> _mLights;
         vector<Light> _lights;
         ConstantLight _constantLight;
-        vec3 point3D_position{ 0.0f };
-        vec3 N{ 0.0f };
+        vec3 point3D_position{0.0f};
+        vec3 N{0.0f};
 
     public:
         Lights();
-        Lights(const Lights& other);
-        void ComputeLightFlat(vec3 a, vec3 b, vec3 c, vec3 normal_a, vec3 normal_b, vec3 normal_c/*, mat4x4 w*/);
+        Lights(const Lights &other);
+        void ComputeLightFlat(vec3 a, vec3 b, vec3 c, vec3 normal_a, vec3 normal_b, vec3 normal_c /*, mat4x4 w*/);
         void ComputeLightGouraud(vec3 weight, vec3 a, vec3 b, vec3 c, vec3 normal_a, vec3 normal_b, vec3 normal_c);
         void ComputeLightPhong(mat3x3 TBN = {}, bool parallax = false);
-        void ComputeSpecular(vec3 camera_position, float s, mat3x3 TBN={}, bool parallax=false);
+        void ComputeSpecular(vec3 camera_position, float s, mat3x3 TBN = {}, bool parallax = false);
         void ComputeAttenuation(string name, float C1 = 0.0f, float C2 = 0.0f, float radius = 0.0f);
         void ComputeSpotLight(string name, float cutoff, float outerCutoff);
         vec3 getIntensity(vec3 weight, Face f);
@@ -66,9 +91,10 @@ namespace Render3D
         string getPathTextureBump() const;
         string getPathTextureDisp() const;
         void setLight(string name, LightType type, vec3 position, vec3 color, vec3 direction = {});
-        map <string, Light > getLight();
+        map<string, Light> getLight();
         void setConstantLight(ConstantLight constantLight);
         void preCompute(vec3 weight, vec3 a, vec3 b, vec3 c, vec3 normal_a, vec3 normal_b, vec3 normal_c);
+
     private:
         void setDot(string name, float dot);
         void setSpecular(string name, float spec);
